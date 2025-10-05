@@ -32,14 +32,22 @@ LLM_MODEL = os.getenv("LLM_MODEL", "llama3.1:8b")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 
 PROMPT = ChatPromptTemplate.from_template(
-    """Jawab singkat, akurat, dan **hanya** berdasarkan konteks.
-Jika tidak ada di konteks, katakan: "Tidak ditemukan di dokumen."
-Bahasa jawaban ikuti bahasa pertanyaan.
+    """You are a helpful, bilingual (English & Indonesian) assistant.
 
-# Pertanyaan:
+TARGET LANGUAGE: {lang_label}
+
+Rules:
+- Answer **only** in the target language above.
+- Length: aim for **4–8 sentences** (or concise bullet points) — not too short, but clear.
+- Use code blocks when helpful.
+- Rely **strictly** on the provided context. If the answer is not present in the context, reply exactly:
+  • English → "Not found in the documents."
+  • Indonesian → "Tidak ditemukan di dokumen."
+
+# Question
 {question}
 
-# Konteks:
+# Context
 {context}
 """
 )
@@ -90,6 +98,27 @@ def guess_profile_from_query(q: str) -> str | None:
     ]):
         return "nestjs11-en"
     return None
+
+def detect_lang(q: str) -> str:
+    """Very simple heuristic: return 'en' or 'id'."""
+    s = (q or "").lower()
+    # kata-kata penanda
+    en_markers = {"how", "what", "why", "when", "where", "please", "example", "explain", "create", "generate"}
+    id_markers = {"bagaimana", "apa", "mengapa", "kapan", "dimana", "contoh", "tolong", "buatkan", "jelaskan"}
+    en_hits = sum(1 for w in en_markers if w in s)
+    id_hits = sum(1 for w in id_markers if w in s)
+    # fallback: karakter
+    if en_hits > id_hits:
+        return "en"
+    if id_hits > en_hits:
+        return "id"
+    # fallback lagi: jika huruf & spasi latin tanpa aksen, anggap en
+    try:
+        s.encode("ascii")
+        return "en"
+    except Exception:
+        return "id"
+
 
 # ---------- Core ----------
 def retrieve_and_answer(question: str, profile_name: str | None, k: int = 8):
@@ -143,8 +172,10 @@ def retrieve_and_answer(question: str, profile_name: str | None, k: int = 8):
     )
 
     llm = ChatOllama(base_url=OLLAMA_BASE_URL, model=LLM_MODEL, temperature=0.2)
+    lang = detect_lang(question)
+    lang_label = "English" if lang == "en" else "Indonesian"
     chain = PROMPT | llm
-    answer = chain.invoke({"question": question, "context": context})
+    answer = chain.invoke({"question": question, "context": context, "lang_label": lang_label})
     t2 = time.time()
 
     timings = (t1 - t0, t2 - t1)
@@ -275,13 +306,18 @@ def main():
             if q.startswith(":"):
                 session_profile = handle_repl_cmd(q, session_profile)
                 continue
-            answer, docs, timings, pname, pdef, col, local_used, cwd = retrieve_and_answer(
-                q, session_profile, k=args.topk, use_mcp=args.mcp
+            # retrieve_and_answer() sekarang return 5 values:
+            # (answer, docs, timings, profile_used, profile_def)
+            answer, docs, timings, pname, pdef = retrieve_and_answer(
+                q, session_profile, k=args.topk
             )
-            print_answer(answer, docs, timings, pname, pdef, col, local_used, cwd)
+            # print_answer() terima 5 argumen juga
+            print_answer(answer, docs, timings, pname, pdef)
         except KeyboardInterrupt:
             console.print("\n[dim]bye[/dim]")
             break
+
+
 
 
 if __name__ == "__main__":
