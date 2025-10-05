@@ -1,0 +1,12 @@
+profiles:
+  nextjs15-en:
+    framework: nextjs
+    version: "15"
+    lang: en
+
+  nestjs11-en:
+    framework: nestjs
+    version: "11"
+    lang: en
+
+  all: {} # tanpa filter (semua korpus)

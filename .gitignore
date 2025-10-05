@@ -1,0 +1,20 @@
+# Python venv & cache
+.venv/
+__pycache__/
+*.pyc
+
+# Env & secrets
+.env
+
+# Editor/OS junk
+.DS_Store
+
+# Docker volumes (lokal saja)
+infrastructure/qdrant/data/
+infrastructure/qdrant/snapshots/
+infrastructure/n8n/data/
+
+# Optional caches
+.cache/
+
+corpus/
