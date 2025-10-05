@@ -1,12 +1,15 @@
 profiles:
   nextjs15-en:
+    collection: kb_nextjs15
     framework: nextjs
     version: "15"
     lang: en
 
   nestjs11-en:
+    collection: kb_nestjs11
     framework: nestjs
     version: "11"
     lang: en
 
-  all: {} # tanpa filter (semua korpus)
+  all:
+    collection: kb_global # <— with combination collection
