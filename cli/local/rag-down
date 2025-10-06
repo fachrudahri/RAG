@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "[rag-down] stop n8n..."
+docker compose -f "$HOME/RAG/infrastructure/n8n/docker-compose.yml" down
+echo "[rag-down] stop Qdrant..."
+docker compose -f "$HOME/RAG/infrastructure/qdrant/docker-compose.yml" down
+echo "[rag-down] done."

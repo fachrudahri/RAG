@@ -1,0 +1,75 @@
+# ~/.local/bin/rag-up
+#!/usr/bin/env bash
+set -euo pipefail
+
+RAG_HOME="${RAG_HOME:-$HOME/RAG}"
+
+# Support two folder names: infra/ or infrastructure/
+if [ -d "$RAG_HOME/infra" ]; then
+  INF_DIR="$RAG_HOME/infra"
+elif [ -d "$RAG_HOME/infrastructure" ]; then
+  INF_DIR="$RAG_HOME/infrastructure"
+else
+  echo "[rag-up] ERROR: infra/infrastructure folder not found in $RAG_HOME"
+  exit 1
+fi
+
+QDRANT_COMPOSE="$INF_DIR/qdrant/docker-compose.yml"
+N8N_COMPOSE="$INF_DIR/n8n/docker-compose.yml"
+
+wait_for_docker() {
+  local max=60
+  local i=0
+  while ! docker info >/dev/null 2>&1; do
+    ((i++)) || true
+    if (( i == 1 )); then
+      echo "[rag-up] Docker daemon is not running. Starting Docker Desktop..."
+      open -a "Docker" || true
+    fi
+    if (( i > max )); then
+      echo "[rag-up] TIMEOUT: Docker not ready after $max seconds."
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
+echo "[rag-up] check & start Docker Desktop…"
+wait_for_docker
+echo "[rag-up] Docker OK."
+
+echo "[rag-up] ensuring docker network..."
+docker network create ragnet >/dev/null 2>&1 || true
+
+echo "[rag-up] start Qdrant…"
+docker compose -f "$QDRANT_COMPOSE" up -d
+
+echo "[rag-up] start n8n…"
+docker compose -f "$N8N_COMPOSE" up -d
+
+# Start Ollama if not already running
+if ! pgrep -f "[O]llama" >/dev/null 2>&1; then
+  echo "[rag-up] start Ollama…"
+  open -a "Ollama" || ollama serve >/dev/null 2>&1 &
+fi
+
+# Light health checks
+sleep 1
+if curl -fsS http://localhost:6333/readyz >/dev/null 2>&1; then
+  echo "  Qdrant OK"
+else
+  echo "  Qdrant not ready (check logs: docker compose -f \"$QDRANT_COMPOSE\" logs -f)"
+fi
+if curl -fsS http://localhost:5678/healthz >/dev/null 2>&1; then
+  echo "  n8n OK"
+else
+  echo "  n8n not ready (check logs: docker compose -f \"$N8N_COMPOSE\" logs -f)"
+fi
+
+# Model info (optional)
+if command -v ollama >/dev/null 2>&1; then
+  echo "  Ollama models:"
+  ollama list | sed '1d;s/^/   - /' || true
+fi
+
+echo "[rag-up] done. Run: call-agent <question>"

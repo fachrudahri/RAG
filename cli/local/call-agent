@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Global wrapper: activate project venv & run CLI from anywhere
+source "$HOME/RAG/.venv/bin/activate"
+exec python3 "$HOME/RAG/cli/call_agent.py" "$@"
